@@ -2,7 +2,7 @@
 // Writes one line of honest, funny error copy to /output/entry.txt.
 // Node 22+, standard library only.
 
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 
 const LINE =
   "We deployed on a Friday and broke the site. The server did exactly what we told it to. We're rolling it back — try again in a few minutes.";
@@ -20,6 +20,20 @@ if (LINE.trim().length === 0) {
 if (LINE.includes("\n") || LINE.includes("\r")) {
   throw new Error("entry must be a single line");
 }
+// No control characters: a dialog line must render exactly as written.
+if (/[\u0000-\u001f\u007f]/.test(LINE)) {
+  throw new Error("entry must not contain control characters");
+}
 
 mkdirSync("/output", { recursive: true });
 writeFileSync("/output/entry.txt", LINE, "utf8");
+
+// Read back what was written and verify it byte-for-byte, so a silent
+// write failure or encoding surprise can never ship a wrong file.
+const written = readFileSync("/output/entry.txt", "utf8");
+if (written !== LINE) {
+  throw new Error("verification failed: /output/entry.txt does not match the entry line");
+}
+if ([...written].length !== length) {
+  throw new Error("verification failed: /output/entry.txt length changed after write");
+}
